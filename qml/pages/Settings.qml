@@ -6,13 +6,11 @@ import Sailfish.Silica 1.0
 Item {
     property alias global: globalSettings
     property alias mode: modeSettings
-    property alias jollaCamera: jollaCameraSettings
 
     ConfigurationGroup {
         id: globalSettings
         path: "/uk/co/piggz/harbour-advanced-camera"
-        property int cameraCount: 2
-        property string cameraId: "primary"
+        property int cameraIndex: 0
         property string captureMode: "image"
         property bool swapZoomControl: false
         property string gridMode: "none"
@@ -22,7 +20,7 @@ Item {
 
         ConfigurationGroup {
             id: modeSettings
-            path: globalSettings.cameraId + "/" + globalSettings.captureMode
+            path: globalSettings.cameraIndex + "/" + globalSettings.captureMode
 
             property int effect: CameraImageProcessing.ColorFilterNone
             property int exposure: Camera.ExposureManual
@@ -32,15 +30,6 @@ Item {
             property string resolution: ""
             property int whiteBalance: CameraImageProcessing.WhiteBalanceAuto
         }
-    }
-
-    ConfigurationGroup {
-        id: jollaCameraSettings
-        path: "/apps/jolla-camera/" + globalSettings.cameraId + "/image"
-
-        property string viewfinderResolution
-        property string viewfinderResolution_16_9
-        property string viewfinderResolution_4_3
     }
 
     function strToSize(siz) {

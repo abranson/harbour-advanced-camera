@@ -413,7 +413,7 @@ Page {
         RoundButton {
             id: btnCameraSwitch
             icon.source: "image://theme/icon-camera-switch"
-            visible: settings.global.cameraCount > 1
+            visible: QtMultimedia.availableCameras.length > 1
             icon.rotation: page.controlsRotation
             anchors {
                 top: parent.top
@@ -426,8 +426,9 @@ Page {
                 camera.imageCapture.setResolution(settings.strToSize("320x240"))
                 camera.stop()
                 _loadParameters = false
-                settings.global.cameraId = settings.global.cameraId
-                        === "primary" ? "secondary" : "primary"
+                if (++settings.global.cameraIndex >= QtMultimedia.availableCameras.length) {
+                    settings.global.cameraIndex = 0;
+                }
                 tmrDelayedStart.start()
             }
         }
@@ -558,7 +559,8 @@ Page {
     }
 
     Component.onCompleted: {
-        camera.deviceId = settings.global.cameraId
+        console.log("Setting initial camera ", QtMultimedia.availableCameras[settings.global.cameraIndex].deviceId)
+        camera.deviceId = QtMultimedia.availableCameras[settings.global.cameraIndex].deviceId
         _completed = true
     }
 
@@ -600,9 +602,10 @@ Page {
         running: false
         interval: 200
         onTriggered: {
-            console.log("camera delayed start", settings.global.cameraId)
+            var newCamera = QtMultimedia.availableCameras[settings.global.cameraIndex]
+            console.log("camera delayed start", newCamera.deviceId, newCamera.displayName, newCamera.position, newCamera.orientation)
             _loadParameters = true
-            camera.deviceId = settings.global.cameraId
+            camera.deviceId = newCamera.deviceId
             camera.start()
             _cameraReload = true
         }
@@ -648,7 +651,7 @@ Page {
 
     function applySettings() {
         console.log("Applying settings in", settings.global.captureMode,
-                    "mode for", camera.deviceId, "camera with status",
+                    "mode for", camera.deviceIndex, "camera with status",
                     camera.cameraStatus)
 
         camera.imageProcessing.setColorFilter(settings.mode.effect)
@@ -665,8 +668,6 @@ Page {
 
         camera.imageCapture.setResolution(settings.resolution("image"))
         camera.videoRecorder.resolution = settings.resolution("video")
-
-        settings.global.cameraCount = QtMultimedia.availableCameras.length
     }
 
     function setFocusMode(focus) {
@@ -698,37 +699,37 @@ Page {
         /// for the selected camera settings
         ///
         /// In order of preference:
-        ///  * viewFinderResolution for the nearest aspect ratio as set in jolla-camera's dconf settings
-        ///  * viewFinderResolution as set in jolla-camera's dconf settings
-        ///  * First resolution as returned by camera.supportedViewfinderResolutions()
-        ///  * device resolution
-        var currentRatioSize = modelResolution.sizeToRatio(
-                    settings.resolution(settings.global.captureMode))
-        var currentRatio = currentRatioSize.height
-                > 0 ? currentRatioSize.width / currentRatioSize.height : 0
-        if (currentRatio > 0) {
-            if (currentRatio <= 4.0 / 3
-                    && settings.jollaCamera.viewfinderResolution_4_3) {
-                return settings.strToSize(
-                            settings.jollaCamera.viewfinderResolution_4_3)
-            } else if (settings.jollaCamera.viewfinderResolution_16_9) {
-                return settings.strToSize(
-                            settings.jollaCamera.viewfinderResolution_16_9)
+        ///  * Exact match to picture size in supported viewfinder resolutions
+        ///  * Highest resolution of the same picture ratio in supported viewfinder resolutions
+        ///  * Default to 800x600 for 4:3, and 1280x720 for everything else and hope it's valid
+        var pictureResolution = settings.resolution(settings.global.captureMode)
+        console.log("Target viewfinder resolution", pictureResolution.width, pictureResolution.height)
+        var supportedResolutions = camera.supportedViewfinderResolutions()
+        var cameraRatio = modelResolution.sizeToRatio(pictureResolution)
+        if (pictureResolution.width > 0 && supportedResolutions) {
+            // Check for exact match to picture size
+            for (var i=0; i<supportedResolutions.length; i++) {
+                var thisRes = Qt.size(supportedResolutions[i]["width"], supportedResolutions[i]["height"])
+                if (pictureResolution === thisRes) {
+                    console.log("Exact match!", thisRes)
+                    return thisRes
+                }
+            }
+            // Find highest ratio match
+            for (var i=supportedResolutions.length-1; i>=0; i--) {
+            var thisRes = Qt.size(supportedResolutions[i]["width"], supportedResolutions[i]["height"])
+                console.log("Viewfinder resolution for ratio:", thisRes)
+                if (cameraRatio === modelResolution.sizeToRatio(thisRes)) {
+                    console.log("Ratio match!" ,thisRes)
+                    return thisRes
+                }
             }
         }
-
-        if (settings.jollaCamera.viewfinderResolution) {
-            return settings.strToSize(settings.jollaCamera.viewfinderResolution)
-        }
-
-        var supportedResolutions = camera.supportedViewfinderResolutions()
-        if (supportedResolutions.length > 0) {
-            //TODO find the best resolution for the correct aspect ratio
-            //when we fix supportedViewfinderResolutions()
-            return supportedResolutions[0]
-        }
-
-        return Qt.size(Screen.height, Screen.width)
+        console.log("Using default for ratio")
+        if (cameraRatio.width == 4 && cameraRatio.height == 3)
+            return Qt.size(800, 600)
+        else
+            return Qt.size(1280, 720)
     }
 
     function doShutter() {

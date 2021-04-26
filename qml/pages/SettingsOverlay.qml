@@ -588,7 +588,7 @@ Item {
     function setMode(mode) {
         modelResolution.setMode(mode)
         settings.global.captureMode = mode
-        settings.mode.path = settings.global.cameraId + "/" + mode
+        settings.mode.path = settings.global.cameraIndex + "/" + mode
     }
 
     function hideAllPanels() {
